@@ -8,9 +8,10 @@
     <OutputType>Exe</OutputType>
     <RootNamespace>PSRT</RootNamespace>
     <AssemblyName>PSRT</AssemblyName>
-    <TargetFrameworkVersion>v4.5.2</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.6</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <TargetFrameworkProfile />
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -46,7 +47,9 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Packets\BlockListPacket.cs" />
+    <Compile Include="Packets\BlockReplyPacket.cs" />
     <Compile Include="Proxy.cs" />
+    <Compile Include="ProxyListenerManager.cs" />
     <Compile Include="StagedLogger.cs" />
     <Compile Include="ConsoleLogger.cs" />
     <Compile Include="ILogger.cs" />

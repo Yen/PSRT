@@ -33,7 +33,7 @@ namespace PSRT
             Body = body;
         }
 
-        public byte[] ToBytes()
+        public virtual byte[] ToBytes()
         {
             var bytes = new byte[Body.Length + 8];
             Array.Copy(Body, 0, bytes, 8, Body.Length);

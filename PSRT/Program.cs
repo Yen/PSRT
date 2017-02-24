@@ -7,6 +7,7 @@ using System.Net.Sockets;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace PSRT
@@ -17,34 +18,21 @@ namespace PSRT
         {
             Console.WriteLine($"PSRT {Assembly.GetExecutingAssembly().GetName().Version}");
 
-            ListenForProxy(IPAddress.Parse("210.189.208.16"), 12200).Wait();
+            Task.Run(MainAsync).Wait();
+
+            // TODO: infinite wait
+            new ManualResetEventSlim().Wait();
         }
 
-        public static Task ListenForProxy(IPAddress proxyAddress, int port)
+        static async Task MainAsync()
         {
-            Console.WriteLine($"Starting proxy listener -> {proxyAddress}:{port}");
-            var listener = new TcpListener(IPAddress.Loopback, port);
-            listener.Start();
-            Console.WriteLine($"Listening on port `{port}`");
-
-            return Task.Run(() =>
-            {
-                while (true)
-                {
-                    var client = listener.AcceptTcpClient();
-                    Console.WriteLine($"Accepted proxy client on port `{port}`");
-
-                    var server = new TcpClient();
-                    server.Connect(proxyAddress, port);
-
-                    var proxy = new Proxy(new ConsoleLogger(LoggerLevel.Verbose));
-                    Task.Run(async () => await proxy.RunAsync(client, server).ContinueWith((t) =>
-                    {
-                        client.Close();
-                        server.Close();
-                    }));
-                }
-            });
+#if DEBUG
+            var logger = new ConsoleLogger(LoggerLevel.Verbose);
+#else
+            var logger = new ConsoleLogger();
+#endif
+            var listenerManager = new ProxyListenerManager(logger);
+            await listenerManager.StartListenerAsync(IPAddress.Parse("210.189.208.16"), 12200);
         }
 
         public static string ToHexString(this byte[] bytes)
