@@ -43,7 +43,7 @@ namespace PSRT
 
             bytes[4] = Header.Alpha;
             bytes[5] = Header.Beta;
-
+            
             Array.Clear(bytes, 6, 2);
 
             return bytes;

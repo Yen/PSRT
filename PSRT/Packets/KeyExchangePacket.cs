@@ -39,7 +39,7 @@ namespace PSRT.Packets
                     var decrypted = psrtDecrypt.DecryptKeyExchange(encrypted);
                     
                     Token = decrypted.Take(16).ToArray();
-                    RC4Key = decrypted.Skip(16).Take(16).ToArray();       
+                    RC4Key = decrypted.Skip(16).Take(16).ToArray();
 
                     // reencrypt
                     var reencrypted = segaEncrypt.CreateKeyExchange(decrypted);

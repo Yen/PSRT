@@ -38,7 +38,8 @@ namespace PSRT.Packets
             get => _Name;
             set
             {
-                Array.Copy(Encoding.Unicode.GetBytes(value), 0, Body, 32, 64);
+                Array.Clear(Body, 32, 64);
+                Array.Copy(Encoding.Unicode.GetBytes(value), 0, Body, 32, Math.Min(value.Length, 64));
                 _Name = value;
             }
         }

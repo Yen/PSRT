@@ -1,4 +1,6 @@
-﻿using PSRT.Packets;
+﻿using Org.BouncyCastle.Crypto.Engines;
+using Org.BouncyCastle.Crypto.Parameters;
+using PSRT.Packets;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,22 +13,35 @@ namespace PSRT
 {
     class Proxy
     {
-        byte[] _RC4Key;
+        private ILogger _BaseLogger;
 
-        enum ProcessDirection
+        private byte[] _RC4Key;
+
+        private RC4Engine _IncomingRC4Encrypter;
+        private RC4Engine _IncomingRC4Decrypter;
+
+        private RC4Engine _OutgoingRC4Encrypter;
+        private RC4Engine _OutgoingRC4Decrypter;
+
+        private enum ConnectionDirection
         {
             Incoming,
             Outgoing
         }
 
+        public Proxy(ILogger logger)
+        {
+            _BaseLogger = new StagedLogger(new StagedLogger(logger, nameof(Proxy)), GetHashCode().ToString());
+        }
+
         public async Task RunAsync(TcpClient client, TcpClient server)
         {
-            Console.WriteLine($"[{GetHashCode()}] Proxy start");
+            _BaseLogger.WriteLine("Proxy begin");
 
-            var tasks = new Task[]
+            var tasks = new[]
             {
-                _ProcessClientAsync(client, server, ProcessDirection.Outgoing),
-                _ProcessClientAsync(server, client, ProcessDirection.Incoming)
+                _HandleConnection(client, server, ConnectionDirection.Outgoing),
+                _HandleConnection(server, client, ConnectionDirection.Incoming)
             };
 
             try
@@ -35,96 +50,139 @@ namespace PSRT
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[{GetHashCode()}] Exception in proxy -> {ex.Message}");
+                _BaseLogger.WriteLine($"Proxy ended with unhandled exception -> {ex.Message}", LoggerLevel.Verbose);
             }
 
-            Console.WriteLine($"[{GetHashCode()}] Proxy end");
+            _BaseLogger.WriteLine("Proxy end");
         }
 
-        async Task _ProcessClientAsync(TcpClient input, TcpClient output, ProcessDirection direction)
+        private async Task _HandleConnection(TcpClient input, TcpClient output, ConnectionDirection direction)
         {
-            var packetBuffer = new List<byte>();
-            var readBuffer = new byte[4096]; // pretty sure pso2 packets dont get bigger than this
+            var logger = new StagedLogger(_BaseLogger, direction.ToString());
+
+            logger.WriteLine("Handler begin");
+
+            try
+            {
+                await _HandleConnectionInternal(input, output, direction, logger);
+            }
+            catch (Exception ex)
+            {
+                logger.WriteLine($"Exception in handler -> {ex.Message}", LoggerLevel.Verbose);
+            }
+
+            // ensure connections are teminated
+            input.Close();
+            output.Close();
+
+            logger.WriteLine("Handler end");
+        }
+
+        private async Task _HandleConnectionInternal(TcpClient input, TcpClient output, ConnectionDirection direction, ILogger logger)
+        {
+            var acceptedBuffer = new List<byte>();
+            var streamBuffer = new byte[4096];
 
             while (true)
             {
-                byte[] key;
-
                 try
                 {
-                    var count = await input.GetStream().ReadAsync(readBuffer, 0, readBuffer.Length);
+                    var count = await input.GetStream().ReadAsync(streamBuffer, 0, streamBuffer.Length);
                     if (count == 0)
+                    {
+                        logger.WriteLine("End of input stream reached", LoggerLevel.Verbose);
+                        break;
+                    }
+
+                    logger.WriteLine($"Data received -> Length: {count}", LoggerLevel.Verbose);
+                    
+                    var decrypter = direction == ConnectionDirection.Incoming ? _IncomingRC4Decrypter : _OutgoingRC4Decrypter;
+                    if (decrypter != null)
+                    {
+                        var decrypted = new byte[count];
+                        decrypter.ProcessBytes(streamBuffer, 0, count, decrypted, 0);
+                        acceptedBuffer.AddRange(decrypted);
+                    }
+                    else
+                    {
+                        acceptedBuffer.AddRange(streamBuffer.Take(count));
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.WriteLine($"Error reading from stream -> {ex.Message}", LoggerLevel.Verbose);
+                    break;
+                }
+
+                // enough data to construct packet length info
+                while (acceptedBuffer.Count >= 4)
+                {
+                    var packetLength = BitConverter.ToInt32(acceptedBuffer.ToArray(), 0);
+                    logger.WriteLine($"Packet length received -> {packetLength}");
+
+                    // not enough data to construct whole of packet, wait for more data
+                    if (packetLength > acceptedBuffer.Count)
                         break;
 
-                    Console.WriteLine($"[{GetHashCode()}] [{direction}] Data length -> {count}");
+                    var packetBuffer = acceptedBuffer.Take(packetLength).ToList();
 
-                    key = _RC4Key;
+                    var packetHeader = new PacketHeader
+                    {
+                        Alpha = packetBuffer[4],
+                        Beta = packetBuffer[5]
+                    };
+                    logger.WriteLine($"Complete packet received -> Length: {packetLength}, Signature: {packetHeader}");
 
-                    if (key != null)
-                        packetBuffer.AddRange(RC4.Decrypt(key, readBuffer.Take(count).ToArray()));
-                    else
-                        packetBuffer.AddRange(readBuffer.Take(count));
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"[{GetHashCode()}] [{direction}] Error reading from stream -> {ex.Message}");
-                    break;
-                }
+                    var headerBuffer = packetBuffer.Take(8).ToArray();
+                    var bodyBuffer = packetBuffer.Skip(8).ToArray();
 
-                if (packetBuffer.Count < 8)
-                    // not enough for valid header construction
-                    continue;
+                    // remove packet data from buffer so it does not get processed again
+                    acceptedBuffer.RemoveRange(0, packetLength);
 
-                var packetLength = BitConverter.ToInt32(packetBuffer.Take(4).ToArray(), 0);
-                Console.WriteLine($"[{GetHashCode()}] [{direction}] Packet length -> {packetLength}");
-                if (packetBuffer.Count < packetLength)
-                    // whole packet not here yet
-                    continue;
+                    //logger.WriteLine($"UTF-8 -> {Encoding.UTF8.GetString(bodyBuffer)}");
+                    //logger.WriteLine($"UTF-16 -> {Encoding.Unicode.GetString(bodyBuffer)}");
 
-                var header = new PacketHeader
-                {
-                    Alpha = packetBuffer[4],
-                    Beta = packetBuffer[5]
-                };
+                    // get encrypter early in case packet handling changes it
+                    var encrypter = direction == ConnectionDirection.Incoming ? _IncomingRC4Encrypter : _OutgoingRC4Encrypter;
 
-                var packet = new Packet(header, packetBuffer.Skip(8).Take(packetLength - 8).ToArray());
+                    var p = _HandlePacket(new Packet(packetHeader, bodyBuffer), logger);
 
-                // remove packet data from buffer
-                packetBuffer.RemoveRange(0, packetLength);
+                    var responseBuffer = new byte[packetLength];
+                    Array.Copy(headerBuffer, responseBuffer, 8);
+                    Array.Copy(p.Body, 0, responseBuffer, 8, p.Body.Length);
 
-                Console.WriteLine($"[{GetHashCode()}] [{direction}] Packet -> Signature: {packet.Header}, Length: {packetLength}");
+                    if (encrypter != null)
+                    {
+                        var encrypted = new byte[responseBuffer.Length];
+                        encrypter.ProcessBytes(responseBuffer, 0, responseBuffer.Length, encrypted, 0);
+                        responseBuffer = encrypted;
+                    }
 
-                var processed = _ProcessPacket(packet);
-
-                var bytes = processed.ToBytes();
-                if (key != null)
-                    bytes = RC4.Encrypt(key, bytes);
-
-                try
-                {
-                    await output.GetStream().WriteAsync(bytes, 0, bytes.Length);
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"[{GetHashCode()}] [{direction}] Error writing to stream -> {ex.Message}");
-                    break;
+                    try
+                    {
+                        await output.GetStream().WriteAsync(responseBuffer, 0, responseBuffer.Length);
+                        await output.GetStream().FlushAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.WriteLine($"Error writing to stream -> {ex.Message}", LoggerLevel.Verbose);
+                        break;
+                    }
                 }
             }
-
-            // close everything, this will kill off the other task also
-            input.Close();
-            output.Close();
         }
 
-        Packet _ProcessPacket(Packet p)
+        private Packet _HandlePacket(Packet p, ILogger logger)
         {
             if (p.Header.Equals(0x11, 0x2c))
             {
                 var packet = new BlockInfoPacket(p);
-                Console.WriteLine($"[{GetHashCode()}] {nameof(BlockInfoPacket)} -> Address: {packet.Address}, Port: {packet.Port}");
+                logger.WriteLine($"{nameof(BlockInfoPacket)} -> Address: {packet.Address}, Port: {packet.Port}", LoggerLevel.Verbose);
 
                 Program.ListenForProxy(packet.Address, packet.Port);
                 packet.Address = IPAddress.Loopback;
+
+                packet.Name = "Ayy lmao";
 
                 return packet;
             }
@@ -132,28 +190,45 @@ namespace PSRT
             if (p.Header.Equals(0x11, 0xb))
             {
                 var packet = new KeyExchangePacket(p);
+                logger.WriteLine($"{nameof(KeyExchangePacket)} -> Token: {packet.Token.ToHexString()}, RC4 key: {packet.RC4Key.ToHexString()}", LoggerLevel.Verbose);
 
-                Console.WriteLine($"[{GetHashCode()}] {nameof(KeyExchangePacket)} -> Token: {packet.Token.ToHexString()}, RC4 key: {packet.RC4Key.ToHexString()}");
+                var keyParam = new KeyParameter(packet.RC4Key);
+
+                _IncomingRC4Encrypter = new RC4Engine();
+                _IncomingRC4Encrypter.Init(true, keyParam);
+
+                _IncomingRC4Decrypter = new RC4Engine();
+                _IncomingRC4Decrypter.Init(false, keyParam);
+
+                _OutgoingRC4Encrypter = new RC4Engine();
+                _OutgoingRC4Encrypter.Init(true, keyParam);
+
+                _OutgoingRC4Decrypter = new RC4Engine();
+                _OutgoingRC4Decrypter.Init(false, keyParam);
 
                 _RC4Key = packet.RC4Key;
-                Console.WriteLine($"[{GetHashCode()}] Packets are now encrypted");
 
+                logger.WriteLine($"Packets are now encrypted", LoggerLevel.Verbose);
                 return packet;
             }
 
             if (p.Header.Equals(0x11, 0xc))
             {
                 var packet = new TokenPacket(p, _RC4Key);
-
-                Console.WriteLine($"[{GetHashCode()}] {nameof(TokenPacket)} -> Token: {packet.Token.ToHexString()}");
-
+                logger.WriteLine($"{nameof(TokenPacket)} -> Token: {packet.Token.ToHexString()}");
                 return packet;
             }
 
             if (p.Header.Equals(0x11, 0x0))
             {
                 var packet = new LoginPacket(p);
-                Console.WriteLine($"[{GetHashCode()}] LoginPacket -> User: `{packet.User}`");
+                logger.WriteLine($"LoginPacket -> User: `{packet.User}`", LoggerLevel.Verbose);
+                return packet;
+            }
+
+            if (p.Header.Equals(0x11, 0x10))
+            {
+                var packet = new BlockListPacket(p);
                 return packet;
             }
 

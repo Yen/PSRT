@@ -37,8 +37,12 @@ namespace PSRT
                     var server = new TcpClient();
                     server.Connect(proxyAddress, port);
 
-                    var proxy = new Proxy();
-                    Task.Run(async () => await proxy.RunAsync(client, server));
+                    var proxy = new Proxy(new ConsoleLogger(LoggerLevel.Verbose));
+                    Task.Run(async () => await proxy.RunAsync(client, server).ContinueWith((t) =>
+                    {
+                        client.Close();
+                        server.Close();
+                    }));
                 }
             });
         }

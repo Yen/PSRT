@@ -21,8 +21,8 @@ namespace PSRT
         static byte[] _EncryptInitalize(byte[] key)
         {
             var s = Enumerable.Range(0, 256)
-              .Select(i => (byte)i)
-              .ToArray();
+                .Select(i => (byte)i)
+                .ToArray();
 
             for (int i = 0, j = 0; i < 256; i++)
             {
