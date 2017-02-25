@@ -6,47 +6,54 @@ using System.Threading.Tasks;
 
 namespace PSRT
 {
-    struct PacketHeader
+    struct PacketSignature
     {
-        public byte Alpha;
-        public byte Beta;
+        public byte Type;
+        public byte Subtype;
 
         public override string ToString()
         {
-            return $"[0x{Alpha.ToString("x")}, 0x{Beta.ToString("x")}]";
+            return $"[0x{Type.ToString("x")}, 0x{Subtype.ToString("x")}]";
         }
 
-        public bool Equals(byte alpha, byte beta)
+        public bool Equals(byte type, byte subtype)
         {
-            return alpha == Alpha && beta == Beta;
+            return type == Type && subtype == Subtype;
         }
     }
 
     class Packet
     {
-        public PacketHeader Header;
+        public PacketSignature Signature;
+        public ushort Flags;
         public byte[] Body;
 
-        public Packet(PacketHeader header, byte[] body)
+        public Packet(PacketSignature signature, byte[] body, ushort flags = 0)
         {
-            Header = header;
+            Signature = signature;
+            Flags = flags;
             Body = body;
         }
 
         public virtual byte[] ToBytes()
         {
-            var bytes = new byte[Body.Length + 8];
-            Array.Copy(Body, 0, bytes, 8, Body.Length);
+            var length = Body.Length + 8;
+            var result = new byte[length];
 
-            var packetSize = BitConverter.GetBytes(Body.Length + 8);
-            Array.Copy(packetSize, bytes, 4);
+            // length 0-3
+            Array.Copy(BitConverter.GetBytes(length), result, 4);
 
-            bytes[4] = Header.Alpha;
-            bytes[5] = Header.Beta;
-            
-            Array.Clear(bytes, 6, 2);
+            // signature 4-5
+            result[4] = Signature.Type;
+            result[5] = Signature.Subtype;
 
-            return bytes;
+            // flags 6-7
+            Array.Copy(BitConverter.GetBytes(Flags), 0, result, 4, 2);
+
+            // body 8-...
+            Array.Copy(Body, 0, result, 8, Body.Length);
+
+            return result;
         }
     }
 }

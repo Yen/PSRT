@@ -7,34 +7,35 @@ using System.Threading.Tasks;
 
 namespace PSRT.Packets
 {
-    class BlockReplyPacket : Packet
+    class SharedShipPacket : Packet
     {
-        private IPAddress _Address;
+        IPAddress _Address;
+        int _Port;
+
         public IPAddress Address
         {
             get => _Address;
             set
             {
-                Array.Copy(value.GetAddressBytes(), 0, Body, 12, 4);
+                Array.Copy(value.GetAddressBytes(), Body, 4);
                 _Address = value;
             }
         }
 
-        private int _Port;
         public int Port
         {
             get => _Port;
             set
             {
-                Array.Copy(BitConverter.GetBytes(checked((ushort)value)), 0, Body, 16, 2);
+                Array.Copy(BitConverter.GetBytes((ushort)value), 0, Body, 4, 2);
                 _Port = value;
             }
         }
 
-        public BlockReplyPacket(Packet packet) : base(packet.Signature, packet.Body)
+        public SharedShipPacket(Packet packet) : base(packet.Signature, packet.Body)
         {
-            _Address = new IPAddress(Body.Skip(12).Take(4).ToArray());
-            _Port = BitConverter.ToUInt16(Body, 16);
+            _Address = new IPAddress(Body.Take(4).ToArray());
+            _Port = BitConverter.ToUInt16(Body, 4);
         }
     }
 }

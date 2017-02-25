@@ -11,12 +11,12 @@ namespace PSRT.Packets
         public string User { get; private set; }
         //public string Password { get; private set; }
 
-        public LoginPacket(Packet packet) : base(packet.Header, packet.Body)
+        public LoginPacket(Packet packet) : base(packet.Signature, packet.Body)
         {
             var userBytes = Body.Skip(500).Take(64).ToArray();
             User = Encoding.UTF8.GetString(userBytes).TrimEnd('\0');
 
-            //ignore password
+            // ignore password
             //var passBytes = Body.Skip(564).Take(64).ToArray();
             //Password = Encoding.UTF8.GetString(passBytes).TrimEnd('\0');
         }

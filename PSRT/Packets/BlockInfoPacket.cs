@@ -44,7 +44,7 @@ namespace PSRT.Packets
             }
         }
 
-        public BlockInfoPacket(Packet packet) : base(packet.Header, packet.Body)
+        public BlockInfoPacket(Packet packet) : base(packet.Signature, packet.Body)
         {
             _Address = new IPAddress(Body.Skip(96).Take(4).ToArray());
             _Port = BitConverter.ToUInt16(Body, 100);

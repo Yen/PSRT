@@ -26,11 +26,9 @@ namespace PSRT
 
         static async Task MainAsync()
         {
-#if DEBUG
             var logger = new ConsoleLogger(LoggerLevel.Verbose);
-#else
-            var logger = new ConsoleLogger();
-#endif
+            //var logger = new ConsoleLogger();
+
             var listenerManager = new ProxyListenerManager(logger);
             await listenerManager.StartListenerAsync(IPAddress.Parse("210.189.208.16"), 12200);
         }

@@ -48,6 +48,8 @@
   <ItemGroup>
     <Compile Include="Packets\BlockListPacket.cs" />
     <Compile Include="Packets\BlockReplyPacket.cs" />
+    <Compile Include="Packets\RoomInfoPacket.cs" />
+    <Compile Include="Packets\SharedShipPacket.cs" />
     <Compile Include="Proxy.cs" />
     <Compile Include="ProxyListenerManager.cs" />
     <Compile Include="StagedLogger.cs" />

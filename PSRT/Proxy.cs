@@ -131,12 +131,12 @@ namespace PSRT
 
                     var packetBuffer = acceptedBuffer.Take(packetLength).ToList();
 
-                    var packetHeader = new PacketHeader
+                    var signature = new PacketSignature
                     {
-                        Alpha = packetBuffer[4],
-                        Beta = packetBuffer[5]
+                        Type = packetBuffer[4],
+                        Subtype = packetBuffer[5]
                     };
-                    logger.WriteLine($"Complete packet received -> Length: {packetLength}, Signature: {packetHeader}", LoggerLevel.Verbose);
+                    logger.WriteLine($"Complete packet received -> Length: {packetLength}, Signature: {signature}", LoggerLevel.Verbose);
 
                     var headerBuffer = packetBuffer.Take(8).ToArray();
                     var bodyBuffer = packetBuffer.Skip(8).ToArray();
@@ -144,19 +144,16 @@ namespace PSRT
                     // remove packet data from buffer so it does not get processed again
                     acceptedBuffer.RemoveRange(0, packetLength);
 
-                    //logger.WriteLine($"UTF-8 -> {Encoding.UTF8.GetString(bodyBuffer)}");
-                    //logger.WriteLine($"UTF-16 -> {Encoding.Unicode.GetString(bodyBuffer)}");
-
                     // get encrypter early in case packet handling changes it
                     var encrypter = direction == ConnectionDirection.Incoming ? _IncomingRC4Encrypter : _OutgoingRC4Encrypter;
 
                     // default to unhandled packet
-                    var response = new Packet(packetHeader, bodyBuffer);
+                    var response = new Packet(signature, bodyBuffer);
                     try
                     {
                         var bodyCopy = new byte[bodyBuffer.Length];
                         Array.Copy(bodyBuffer, bodyCopy, bodyBuffer.Length);
-                        response = await _HandlePacket(new Packet(packetHeader, bodyCopy), logger);
+                        response = await _HandlePacket(new Packet(signature, bodyCopy), logger);
                     }
                     catch (Exception ex)
                     {
@@ -191,7 +188,7 @@ namespace PSRT
 
         private async Task<Packet> _HandlePacket(Packet p, ILogger logger)
         {
-            if (p.Header.Equals(0x11, 0x2c))
+            if (p.Signature.Equals(0x11, 0x2c))
             {
                 var packet = new BlockInfoPacket(p);
                 logger.WriteLine($"{nameof(BlockInfoPacket)} -> Address: {packet.Address}, Port: {packet.Port}");
@@ -202,7 +199,7 @@ namespace PSRT
                 return packet;
             }
 
-            if (p.Header.Equals(0x11, 0xb))
+            if (p.Signature.Equals(0x11, 0xb))
             {
                 var packet = new KeyExchangePacket(p);
                 logger.WriteLine($"{nameof(KeyExchangePacket)} -> Token: {packet.Token.ToHexString()}, RC4 key: {packet.RC4Key.ToHexString()}", LoggerLevel.Verbose);
@@ -227,24 +224,25 @@ namespace PSRT
                 return packet;
             }
 
-            if (p.Header.Equals(0x11, 0xc))
+            if (p.Signature.Equals(0x11, 0xc))
             {
                 var packet = new TokenPacket(p, _RC4Key);
                 logger.WriteLine($"{nameof(TokenPacket)} -> Token: {packet.Token.ToHexString()}", LoggerLevel.Verbose);
                 return packet;
             }
 
-            if (p.Header.Equals(0x11, 0x0))
+            if (p.Signature.Equals(0x11, 0x0))
             {
                 var packet = new LoginPacket(p);
                 logger.WriteLine($"LoginPacket -> User: `{packet.User}`");
                 return packet;
             }
 
-            if (p.Header.Equals(0x11, 0x10))
+            if (p.Signature.Equals(0x11, 0x10))
             {
                 var packet = new BlockListPacket(p);
 
+                // TODO: temp
                 packet.BlockInfos.ForEach(x =>
                 {
                     x.Name = $"{x.Name.Substring(0, x.Name.Length - 5)} Sponsored by Telepipe™";
@@ -253,9 +251,35 @@ namespace PSRT
                 return packet;
             }
 
-            if (p.Header.Equals(0x11, 0x13))
+            if (p.Signature.Equals(0x11, 0x13))
             {
                 var packet = new BlockReplyPacket(p);
+
+                await _ProxyListenerManager.StartListenerAsync(packet.Address, packet.Port);
+                packet.Address = IPAddress.Loopback;
+
+                return packet;
+            }
+
+            // user rooms and team room both use the same packet structure
+            if (p.Signature.Equals(0x11, 0x17) || p.Signature.Equals(0x11, 0x4f))
+            {
+                var packet = new RoomInfoPacket(p);
+                logger.WriteLine($"{nameof(RoomInfoPacket)} -> Address: {packet.Address}, Port: {packet.Port}");
+
+                await _ProxyListenerManager.StartListenerAsync(packet.Address, packet.Port);
+                packet.Address = IPAddress.Loopback;
+
+                return packet;
+            }
+
+            if (p.Signature.Equals(0x11, 0x21))
+            {
+                var packet = new SharedShipPacket(p);
+                logger.WriteLine($"{nameof(SharedShipPacket)} -> Address: {packet.Address}, Port: {packet.Port}");
+
+                //// dont really know about this but it works for PSO2Proxy so ok?
+                //packet.Port = 13000;
 
                 await _ProxyListenerManager.StartListenerAsync(packet.Address, packet.Port);
                 packet.Address = IPAddress.Loopback;
