@@ -32,7 +32,7 @@ namespace PSRT.Packets
             }
         }
 
-        public SharedShipPacket(Packet packet) : base(packet.Signature, packet.Body)
+        public SharedShipPacket(Packet packet) : base(packet)
         {
             _Address = new IPAddress(Body.Take(4).ToArray());
             _Port = BitConverter.ToUInt16(Body, 4);

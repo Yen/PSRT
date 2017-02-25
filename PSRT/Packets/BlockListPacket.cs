@@ -18,7 +18,7 @@ namespace PSRT.Packets
     {
         public List<BlockInfo> BlockInfos { get; private set; } = new List<BlockInfo>();
 
-        public BlockListPacket(Packet packet) : base(packet.Signature, packet.Body)
+        public BlockListPacket(Packet packet) : base(packet)
         {
             // TODO: PSO2Proxy method
 

@@ -31,7 +31,7 @@ namespace PSRT.Packets
             }
         }
 
-        public BlockReplyPacket(Packet packet) : base(packet.Signature, packet.Body)
+        public BlockReplyPacket(Packet packet) : base(packet)
         {
             _Address = new IPAddress(Body.Skip(12).Take(4).ToArray());
             _Port = BitConverter.ToUInt16(Body, 16);

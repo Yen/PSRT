@@ -32,7 +32,7 @@ namespace PSRT.Packets
             }
         }
 
-        public RoomInfoPacket(Packet packet) : base(packet.Signature, packet.Body)
+        public RoomInfoPacket(Packet packet) : base(packet)
         {
             _Address = new IPAddress(Body.Skip(24).Take(4).ToArray());
             _Port = BitConverter.ToUInt16(Body, 32);

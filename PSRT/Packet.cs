@@ -28,7 +28,10 @@ namespace PSRT
         public ushort Flags;
         public byte[] Body;
 
-        public Packet(PacketSignature signature, byte[] body, ushort flags = 0)
+        public Packet(Packet copy): this(copy.Signature, copy.Flags, copy.Body)
+        { }
+
+        public Packet(PacketSignature signature, ushort flags, byte[] body)
         {
             Signature = signature;
             Flags = flags;
@@ -48,7 +51,7 @@ namespace PSRT
             result[5] = Signature.Subtype;
 
             // flags 6-7
-            Array.Copy(BitConverter.GetBytes(Flags), 0, result, 4, 2);
+            Array.Copy(BitConverter.GetBytes(Flags), 0, result, 6, 2);
 
             // body 8-...
             Array.Copy(Body, 0, result, 8, Body.Length);

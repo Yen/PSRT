@@ -14,6 +14,7 @@ namespace PSRT
     enum LoggerLevel
     {
         Info,
-        Verbose
+        Verbose,
+        VerboseTechnical
     }
 }

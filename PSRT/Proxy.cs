@@ -75,8 +75,8 @@ namespace PSRT
             }
 
             // ensure connections are teminated
-            input.Close();
-            output.Close();
+            input.Client.Shutdown(SocketShutdown.Both);
+            output.Client.Shutdown(SocketShutdown.Both);
 
             logger.WriteLine("Handler end");
         }
@@ -93,11 +93,11 @@ namespace PSRT
                     var count = await input.ReadAsync(streamBuffer, 0, streamBuffer.Length);
                     if (count == 0)
                     {
-                        logger.WriteLine("End of input stream reached", LoggerLevel.Verbose);
+                        logger.WriteLine("End of input stream reached", LoggerLevel.VerboseTechnical);
                         break;
                     }
 
-                    logger.WriteLine($"Data received -> Length: {count}", LoggerLevel.Verbose);
+                    logger.WriteLine($"Data received -> Length: {count}", LoggerLevel.VerboseTechnical);
 
                     var decrypter = direction == ConnectionDirection.Incoming ? _IncomingRC4Decrypter : _OutgoingRC4Decrypter;
                     if (decrypter != null)
@@ -111,35 +111,42 @@ namespace PSRT
                         acceptedBuffer.AddRange(streamBuffer.Take(count));
                     }
 
-                    logger.WriteLine($"Current accepted data length -> {acceptedBuffer.Count}", LoggerLevel.Verbose);
+                    logger.WriteLine($"Current accepted data length -> {acceptedBuffer.Count}", LoggerLevel.VerboseTechnical);
                 }
                 catch (Exception ex)
                 {
-                    logger.WriteLine($"Error reading from stream -> {ex.Message}", LoggerLevel.Verbose);
+                    logger.WriteLine($"Error reading from stream -> {ex.Message}", LoggerLevel.VerboseTechnical);
                     break;
                 }
 
                 // enough data to construct packet length info
                 while (acceptedBuffer.Count >= 4)
                 {
-                    var packetLength = BitConverter.ToInt32(acceptedBuffer.ToArray(), 0);
-                    logger.WriteLine($"Packet length received -> {packetLength}", LoggerLevel.Verbose);
+                    var packetLengthBuffer = acceptedBuffer.Take(4).ToArray();
+                    var packetLength = BitConverter.ToInt32(packetLengthBuffer, 0);
+
+                    logger.WriteLine($"Packet length received -> {packetLength}", LoggerLevel.VerboseTechnical);
 
                     // not enough data to construct whole of packet, wait for more data
                     if (packetLength > acceptedBuffer.Count)
                         break;
 
-                    var packetBuffer = acceptedBuffer.Take(packetLength).ToList();
+                    // whole packet received, time to decode
 
-                    var signature = new PacketSignature
+                    var packetSignatureBuffer = acceptedBuffer.Skip(4).Take(2).ToArray();
+                    var packetSignature = new PacketSignature
                     {
-                        Type = packetBuffer[4],
-                        Subtype = packetBuffer[5]
+                        Type = packetSignatureBuffer[0],
+                        Subtype = packetSignatureBuffer[1]
                     };
-                    logger.WriteLine($"Complete packet received -> Length: {packetLength}, Signature: {signature}", LoggerLevel.Verbose);
 
-                    var headerBuffer = packetBuffer.Take(8).ToArray();
-                    var bodyBuffer = packetBuffer.Skip(8).ToArray();
+                    var packetFlagsBuffer = acceptedBuffer.Skip(6).Take(2).ToArray();
+                    var packetFlags = BitConverter.ToUInt16(packetFlagsBuffer, 0);
+
+                    logger.WriteLine($"Packet received -> Length: {packetLength}, Signature: {packetSignature}, Flags: 0x{packetFlags.ToString("x4")}", LoggerLevel.Verbose);
+
+                    var packetBodyLength = packetLength - 8;
+                    var packetBody = acceptedBuffer.Skip(8).Take(packetBodyLength).ToArray();
 
                     // remove packet data from buffer so it does not get processed again
                     acceptedBuffer.RemoveRange(0, packetLength);
@@ -148,24 +155,11 @@ namespace PSRT
                     var encrypter = direction == ConnectionDirection.Incoming ? _IncomingRC4Encrypter : _OutgoingRC4Encrypter;
 
                     // default to unhandled packet
-                    var response = new Packet(signature, bodyBuffer);
-                    try
-                    {
-                        var bodyCopy = new byte[bodyBuffer.Length];
-                        Array.Copy(bodyBuffer, bodyCopy, bodyBuffer.Length);
-                        response = await _HandlePacket(new Packet(signature, bodyCopy), logger);
-                    }
-                    catch (Exception ex)
-                    {
-                        logger.WriteLine($"Error occurred handling packet, ingnoring and sending unhandled packet -> {ex.Message}", LoggerLevel.Verbose);
-                    }
+                    var unhandledPacket = new Packet(packetSignature, packetFlags, packetBody);
+                    var handledPacket = await _HandlePacket(unhandledPacket, logger);
 
-                    // TODO: cleanup
-                    var responseBytes = response.ToBytes();
-                    var responseBuffer = new byte[packetLength];
-                    Array.Copy(headerBuffer, responseBuffer, 8);
-                    Array.Copy(responseBytes, 8, responseBuffer, 8, responseBytes.Length - 8);
-
+                    var responseBuffer = handledPacket.ToBytes();
+                    // encrypt packet bytes if needed
                     if (encrypter != null)
                     {
                         var encrypted = new byte[responseBuffer.Length];
@@ -179,7 +173,7 @@ namespace PSRT
                     }
                     catch (Exception ex)
                     {
-                        logger.WriteLine($"Error writing to stream -> {ex.Message}", LoggerLevel.Verbose);
+                        logger.WriteLine($"Error writing to stream -> {ex.Message}", LoggerLevel.VerboseTechnical);
                         break;
                     }
                 }
@@ -191,7 +185,7 @@ namespace PSRT
             if (p.Signature.Equals(0x11, 0x2c))
             {
                 var packet = new BlockInfoPacket(p);
-                logger.WriteLine($"{nameof(BlockInfoPacket)} -> Address: {packet.Address}, Port: {packet.Port}");
+                logger.WriteLine($"{nameof(BlockInfoPacket)} -> Address: {packet.Address}, Port: {packet.Port}", LoggerLevel.Verbose);
 
                 await _ProxyListenerManager.StartListenerAsync(packet.Address, packet.Port);
                 packet.Address = IPAddress.Loopback;
@@ -234,7 +228,7 @@ namespace PSRT
             if (p.Signature.Equals(0x11, 0x0))
             {
                 var packet = new LoginPacket(p);
-                logger.WriteLine($"LoginPacket -> User: `{packet.User}`");
+                logger.WriteLine($"LoginPacket -> User: `{packet.User}`", LoggerLevel.Verbose);
                 return packet;
             }
 
@@ -245,7 +239,8 @@ namespace PSRT
                 // TODO: temp
                 packet.BlockInfos.ForEach(x =>
                 {
-                    x.Name = $"{x.Name.Substring(0, x.Name.Length - 5)} Sponsored by Telepipe™";
+                    var blockStart = new string(x.Name.Take(5).ToArray());
+                    x.Name = $"{blockStart}: Sponsored by Telepipe™";
                 });
 
                 return packet;
@@ -265,7 +260,7 @@ namespace PSRT
             if (p.Signature.Equals(0x11, 0x17) || p.Signature.Equals(0x11, 0x4f))
             {
                 var packet = new RoomInfoPacket(p);
-                logger.WriteLine($"{nameof(RoomInfoPacket)} -> Address: {packet.Address}, Port: {packet.Port}");
+                logger.WriteLine($"{nameof(RoomInfoPacket)} -> Address: {packet.Address}, Port: {packet.Port}", LoggerLevel.Verbose);
 
                 await _ProxyListenerManager.StartListenerAsync(packet.Address, packet.Port);
                 packet.Address = IPAddress.Loopback;
@@ -276,10 +271,7 @@ namespace PSRT
             if (p.Signature.Equals(0x11, 0x21))
             {
                 var packet = new SharedShipPacket(p);
-                logger.WriteLine($"{nameof(SharedShipPacket)} -> Address: {packet.Address}, Port: {packet.Port}");
-
-                //// dont really know about this but it works for PSO2Proxy so ok?
-                //packet.Port = 13000;
+                logger.WriteLine($"{nameof(SharedShipPacket)} -> Address: {packet.Address}, Port: {packet.Port}", LoggerLevel.Verbose);
 
                 await _ProxyListenerManager.StartListenerAsync(packet.Address, packet.Port);
                 packet.Address = IPAddress.Loopback;

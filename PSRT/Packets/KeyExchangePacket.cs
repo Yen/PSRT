@@ -13,7 +13,7 @@ namespace PSRT.Packets
         public byte[] Token { get; private set; }
         public byte[] RC4Key { get; private set; }
 
-        public KeyExchangePacket(Packet packet) : base(packet.Signature, packet.Body)
+        public KeyExchangePacket(Packet packet) : base(packet)
         {
             try
             {
