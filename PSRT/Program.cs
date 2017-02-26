@@ -26,7 +26,7 @@ namespace PSRT
 
         static async Task MainAsync()
         {
-            var logger = new ConsoleLogger(LoggerLevel.Verbose);
+            var logger = new ConsoleLogger(LoggerLevel.VerboseTechnical);
             //var logger = new ConsoleLogger();
 
             var listenerManager = new ProxyListenerManager(logger);

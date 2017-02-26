@@ -14,11 +14,11 @@ namespace PSRT.Packets
         public LoginPacket(Packet packet) : base(packet)
         {
             var userBytes = Body.Skip(500).Take(64).ToArray();
-            User = Encoding.UTF8.GetString(userBytes).TrimEnd('\0');
+            User = Encoding.ASCII.GetString(userBytes).TrimEnd('\0');
 
             // ignore password
             //var passBytes = Body.Skip(564).Take(64).ToArray();
-            //Password = Encoding.UTF8.GetString(passBytes).TrimEnd('\0');
+            //Password = Encoding.ASCII.GetString(passBytes).TrimEnd('\0');
         }
     }
 }

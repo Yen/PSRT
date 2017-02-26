@@ -240,7 +240,7 @@ namespace PSRT
                 packet.BlockInfos.ForEach(x =>
                 {
                     var blockStart = new string(x.Name.Take(5).ToArray());
-                    x.Name = $"{blockStart}: Sponsored by Telepipe™";
+                    x.Name = $"{blockStart}: Never sponsored by Telepipe™";
                 });
 
                 return packet;
@@ -275,6 +275,22 @@ namespace PSRT
 
                 await _ProxyListenerManager.StartListenerAsync(packet.Address, packet.Port);
                 packet.Address = IPAddress.Loopback;
+
+                return packet;
+            }
+
+            if (p.Signature.Equals(0x31, 0x5))
+            {
+                var packet = new TitlePacket(p);
+
+                //for (int i = 0; i < packet.Titles.Count; i++)
+                //{
+                //    packet.Titles[i] = new TitlePacket.TitleInfo
+                //    {
+                //        Id = packet.Titles[i].Id,
+                //        Name = "Ayy lmao"
+                //    };
+                //}
 
                 return packet;
             }

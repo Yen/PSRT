@@ -12,7 +12,7 @@ namespace PSRT.Packets
 
         public TokenPacket(Packet packet, byte[] RC4Key) : base(packet)
         {
-            Token = RC4.Decrypt(RC4Key, packet.Body.ToArray());
+            Token = RC4.Decrypt(RC4Key, Body);
         }
     }
 }
