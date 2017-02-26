@@ -48,6 +48,7 @@
   <ItemGroup>
     <Compile Include="Packets\BlockListPacket.cs" />
     <Compile Include="Packets\BlockReplyPacket.cs" />
+    <Compile Include="Packets\LoginConfirmationPacket.cs" />
     <Compile Include="Packets\RoomInfoPacket.cs" />
     <Compile Include="Packets\SharedShipPacket.cs" />
     <Compile Include="Packets\PackedStringPacket.cs" />

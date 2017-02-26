@@ -84,7 +84,7 @@ namespace PSRT
         private async Task _HandleConnectionInternal(Stream input, Stream output, ConnectionDirection direction, ILogger logger)
         {
             var acceptedBuffer = new List<byte>();
-            var streamBuffer = new byte[4096];
+            var streamBuffer = new byte[8192];
 
             while (true)
             {
@@ -234,16 +234,27 @@ namespace PSRT
                 return packet;
             }
 
+            if (p.Signature.Equals(0x11, 0x1))
+            {
+                var packet = new LoginConfirmationPacket(p);
+
+                // general sellout
+                var blockId = packet.BlockName.Substring(0, 5);
+                packet.BlockName = $"{blockId}:PSRT";
+
+                return packet;
+            }
+
             if (p.Signature.Equals(0x11, 0x10))
             {
                 var packet = new BlockListPacket(p);
 
-                // TODO: temp
-                packet.BlockInfos.ForEach(x =>
-                {
-                    var blockStart = new string(x.Name.Take(5).ToArray());
-                    x.Name = $"{blockStart}: Never sponsored by Telepipe™";
-                });
+                //// TODO: temp
+                //packet.BlockInfos.ForEach(x =>
+                //{
+                //    var blockStart = new string(x.Name.Take(5).ToArray());
+                //    x.Name = $"{blockStart}: Never sponsored by Telepipe™";
+                //});
 
                 return packet;
             }
@@ -281,27 +292,23 @@ namespace PSRT
                 return packet;
             }
 
-#if false
-            if (p.Signature.Equals(0x31, 0x5))
-            {
-                // TODO: can translate titles here
+            //if (p.Signature.Equals(0x31, 0x5))
+            //{
+            //    // TODO: can translate titles here
 
-                var packet = new PackedStringPacket(p, PackedStringPacket.TitlePacketXor, PackedStringPacket.TitlePacketSub);
+            //    var packet = new PackedStringPacket(p, PackedStringPacket.TitlePacketXor, PackedStringPacket.TitlePacketSub);
 
-                //for (int i = 0; i < packet.Titles.Count; i++)
-                //{
-                //    packet.Titles[i] = new TitlePacket.TitleInfo
-                //    {
-                //        Id = packet.Titles[i].Id,
-                //        Name = "Ayy lmao"
-                //    };
-                //}
+            //    //for (int i = 0; i < packet.Titles.Count; i++)
+            //    //{
+            //    //    packet.Titles[i] = new TitlePacket.TitleInfo
+            //    //    {
+            //    //        Id = packet.Titles[i].Id,
+            //    //        Name = "Ayy lmao"
+            //    //    };
+            //    //}
 
-                return packet;
-            }
-#endif
-
-
+            //    return packet;
+            //}
 
             return p;
         }
