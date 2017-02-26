@@ -182,6 +182,8 @@ namespace PSRT
 
         private async Task<Packet> _HandlePacket(Packet p, ILogger logger)
         {
+            // TODO: proper packet resolver with fancy lambdas and stuff
+
             if (p.Signature.Equals(0x11, 0x2c))
             {
                 var packet = new BlockInfoPacket(p);
@@ -279,9 +281,12 @@ namespace PSRT
                 return packet;
             }
 
+#if false
             if (p.Signature.Equals(0x31, 0x5))
             {
-                var packet = new TitlePacket(p);
+                // TODO: can translate titles here
+
+                var packet = new PackedStringPacket(p, PackedStringPacket.TitlePacketXor, PackedStringPacket.TitlePacketSub);
 
                 //for (int i = 0; i < packet.Titles.Count; i++)
                 //{
@@ -294,6 +299,9 @@ namespace PSRT
 
                 return packet;
             }
+#endif
+
+
 
             return p;
         }

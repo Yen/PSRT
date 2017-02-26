@@ -9,11 +9,11 @@ namespace PSRT.Packets
 {
     // TODO: not finished
 
-    class TitlePacket : Packet
+    class PackedStringPacket : Packet
     {
         // lmao magic numbers
-        private const uint PacketXor = 0x57e6;
-        private const uint PacketSub = 0x92;
+        public const uint TitlePacketXor = 0x57e6;
+        public const uint TitlePacketSub = 0x92;
 
         public struct TitleInfo
         {
@@ -21,13 +21,20 @@ namespace PSRT.Packets
             public string Name;
         }
 
+        // specified lmao magic numbers
+        private uint _PacketXor;
+        private uint _PacketSub;
+
         public List<TitleInfo> Titles = new List<TitleInfo>();
 
-        public TitlePacket(Packet packet) : base(packet)
+        public PackedStringPacket(Packet packet, uint xor, uint sub) : base(packet)
         {
+            _PacketXor = xor;
+            _PacketSub = sub;
+
             var titleCountBuffer = Body.Take(4).ToArray();
             var titleCountXor = BitConverter.ToUInt32(titleCountBuffer, 0);
-            var titleCount = checked((int)SubXor(titleCountXor, PacketSub, PacketXor));
+            var titleCount = checked((int)SubXor(titleCountXor, _PacketSub, _PacketXor));
 
             var titleIdsOffset = 4;
             var titleIds = new uint[titleCount];
@@ -37,7 +44,7 @@ namespace PSRT.Packets
             var characterCountOffset = titleIdsOffset + titleCount * 4;
             var characterCountBuffer = Body.Skip(characterCountOffset).Take(4).ToArray();
             var characterCountXor = BitConverter.ToUInt32(characterCountBuffer, 0);
-            var characterCount = checked((int)SubXor(characterCountXor, PacketSub, PacketXor));
+            var characterCount = checked((int)SubXor(characterCountXor, _PacketSub, _PacketXor));
 
             var charactersBufferOffset = characterCountOffset + 4;
             // the byte length of characters must be a multiple of 4 so add alignment on when reading
@@ -48,7 +55,7 @@ namespace PSRT.Packets
             var titleNameLengthsCountOffset = charactersBufferOffset + characterCount * 2;
             var titleNameLengthsCountBuffer = Body.Skip(titleNameLengthsCountOffset).Take(4).ToArray();
             var titleNameLengthsCountXor = BitConverter.ToUInt32(titleNameLengthsCountBuffer, 0);
-            var titleNameLengthsCount = checked((int)SubXor(titleNameLengthsCountXor, PacketSub, PacketXor));
+            var titleNameLengthsCount = checked((int)SubXor(titleNameLengthsCountXor, _PacketSub, _PacketXor));
 
             var titleNameLenghtsOffset = titleNameLengthsCountOffset + 4;
             var titleNameLengths = Body.Skip(titleNameLenghtsOffset).Take(titleCount).ToArray();
@@ -73,7 +80,7 @@ namespace PSRT.Packets
 
         public override byte[] ToBytes()
         {
-            var titleCountXor = AddXor(checked((uint)Titles.Count), PacketSub, PacketXor);
+            var titleCountXor = AddXor(checked((uint)Titles.Count), _PacketSub, _PacketXor);
             var titleCountBuffer = BitConverter.GetBytes(titleCountXor);
 
             var titleIdsBuffer = Titles.SelectMany(x => BitConverter.GetBytes(x.Id));
@@ -85,7 +92,7 @@ namespace PSRT.Packets
                 characters.Add('\0');
 
             var characterCount = characters.Count();
-            var characterCountXor = AddXor(checked((uint)characterCount), PacketSub, PacketXor);
+            var characterCountXor = AddXor(checked((uint)characterCount), _PacketSub, _PacketXor);
             var characterCountBuffer = BitConverter.GetBytes(characterCountXor);
 
             var charactersBuffer = Encoding.Unicode.GetBytes(characters.ToArray());
