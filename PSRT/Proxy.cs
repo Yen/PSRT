@@ -7,6 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -242,7 +243,8 @@ namespace PSRT
 
                 // general sellout
                 var blockId = packet.BlockName.Substring(0, 5);
-                packet.BlockName = $"{blockId}:PSRT";
+                var releaseString = 
+                packet.BlockName = $"{blockId}:{Program.ApplicationName}";
 
                 return packet;
             }

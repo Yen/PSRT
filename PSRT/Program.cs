@@ -13,14 +13,17 @@ namespace PSRT
 {
     static class Program
     {
+#if DEBUG
+        public static string ApplicationName = $"PSRT Debug {Assembly.GetExecutingAssembly().GetName().Version}";
+#else
+        public static string ApplicationName = $"PSRT {Assembly.GetExecutingAssembly().GetName().Version}";
+#endif
+
         static void Main(string[] args)
         {
-            Console.WriteLine($"PSRT {Assembly.GetExecutingAssembly().GetName().Version}");
+            Console.WriteLine(ApplicationName);
 
             Task.Run(MainAsync).Wait();
-
-            // TODO: infinite wait
-            new ManualResetEventSlim().Wait();
         }
 
         static async Task MainAsync()
@@ -42,7 +45,8 @@ namespace PSRT
             var listenerManager = new ProxyListenerManager(logger, applicationResources);
 
             // ship2
-            await listenerManager.StartListenerAsync(IPAddress.Parse("210.189.208.16"), 12200);
+            // await await is a good pattern
+            await await listenerManager.StartListenerAsync(IPAddress.Parse("210.189.208.16"), 12200);
         }
 
         public static string ToHexString(this byte[] bytes)

@@ -39,7 +39,7 @@ namespace PSRT
             _ApplicationResources = applicationResources;
         }
 
-        public async Task StartListenerAsync(IPAddress address, int port)
+        public async Task<Task> StartListenerAsync(IPAddress address, int port)
         {
             await _ListenerSemaphore.WaitAsync();
             try
@@ -50,7 +50,7 @@ namespace PSRT
                 // this does not take into account same ports on different addresses but
                 // I dont know if pso2 does that or not
                 if (_Listeners.Any(x => x.Port == port))
-                    return;
+                    return _Listeners.First(x => x.Port == port).RunnerTask;
 
                 _Logger.WriteLine($"Starting listener -> {address} : {port}");
 
@@ -106,6 +106,8 @@ namespace PSRT
                     RunnerTask = listenerTask,
                     Proxies = proxies
                 });
+
+                return listenerTask;
             }
             finally
             {
