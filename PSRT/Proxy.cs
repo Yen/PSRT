@@ -3,7 +3,6 @@ using Org.BouncyCastle.Crypto.Parameters;
 using PSRT.Packets;
 using System;
 using System.Collections.Generic;
-using System.Data.SQLite;
 using System.IO;
 using System.Linq;
 using System.Net;
