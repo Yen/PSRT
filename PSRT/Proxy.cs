@@ -3,6 +3,7 @@ using Org.BouncyCastle.Crypto.Parameters;
 using PSRT.Packets;
 using System;
 using System.Collections.Generic;
+using System.Data.SQLite;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -14,6 +15,7 @@ namespace PSRT
 {
     class Proxy
     {
+        private ApplicationResources _ApplicationResources;
         private ILogger _BaseLogger;
         private ProxyListenerManager _ProxyListenerManager;
 
@@ -31,9 +33,10 @@ namespace PSRT
             Outgoing
         }
 
-        public Proxy(ILogger logger, ProxyListenerManager proxyListenerManager)
+        public Proxy(ILogger logger, ApplicationResources applicationResources, ProxyListenerManager proxyListenerManager)
         {
             _BaseLogger = new StagedLogger(new StagedLogger(logger, nameof(Proxy)), GetHashCode().ToString());
+            _ApplicationResources = applicationResources;
             _ProxyListenerManager = proxyListenerManager;
         }
 
@@ -190,7 +193,7 @@ namespace PSRT
                 logger.WriteLine($"{nameof(BlockInfoPacket)} -> Address: {packet.Address}, Port: {packet.Port}", LoggerLevel.Verbose);
 
                 await _ProxyListenerManager.StartListenerAsync(packet.Address, packet.Port);
-                packet.Address = IPAddress.Loopback;
+                packet.Address = _ApplicationResources.HostAddress;
 
                 return packet;
             }
@@ -249,12 +252,12 @@ namespace PSRT
             {
                 var packet = new BlockListPacket(p);
 
-                //// TODO: temp
-                //packet.BlockInfos.ForEach(x =>
-                //{
-                //    var blockStart = new string(x.Name.Take(5).ToArray());
-                //    x.Name = $"{blockStart}: Never sponsored by Telepipe™";
-                //});
+                for (int i = 0; i < packet.BlockInfos.Length; i++)
+                {
+                    var name = packet.BlockInfos[i].Name;
+                    if (_ApplicationResources.BlockNameTranslations.ContainsKey(name))
+                        packet.BlockInfos[i].Name = _ApplicationResources.BlockNameTranslations[name];
+                }
 
                 return packet;
             }
@@ -264,7 +267,7 @@ namespace PSRT
                 var packet = new BlockReplyPacket(p);
 
                 await _ProxyListenerManager.StartListenerAsync(packet.Address, packet.Port);
-                packet.Address = IPAddress.Loopback;
+                packet.Address = _ApplicationResources.HostAddress;
 
                 return packet;
             }
@@ -276,7 +279,7 @@ namespace PSRT
                 logger.WriteLine($"{nameof(RoomInfoPacket)} -> Address: {packet.Address}, Port: {packet.Port}", LoggerLevel.Verbose);
 
                 await _ProxyListenerManager.StartListenerAsync(packet.Address, packet.Port);
-                packet.Address = IPAddress.Loopback;
+                packet.Address = _ApplicationResources.HostAddress;
 
                 return packet;
             }
@@ -287,7 +290,7 @@ namespace PSRT
                 logger.WriteLine($"{nameof(SharedShipPacket)} -> Address: {packet.Address}, Port: {packet.Port}", LoggerLevel.Verbose);
 
                 await _ProxyListenerManager.StartListenerAsync(packet.Address, packet.Port);
-                packet.Address = IPAddress.Loopback;
+                packet.Address = _ApplicationResources.HostAddress;
 
                 return packet;
             }
@@ -306,6 +309,15 @@ namespace PSRT
             //    //        Name = "Ayy lmao"
             //    //    };
             //    //}
+
+            //    return packet;
+            //}
+
+            //if (p.Signature.Equals(0x4, 0x52))
+            //{
+            //    var packet = new DamagePacket(p);
+
+            //    logger.WriteLine($"Damage received -> {packet.Value}");
 
             //    return packet;
             //}

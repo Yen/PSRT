@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data;
+using System.Data.SQLite;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -29,7 +31,18 @@ namespace PSRT
             var logger = new ConsoleLogger(LoggerLevel.Verbose);
             //var logger = new ConsoleLogger();
 
-            var listenerManager = new ProxyListenerManager(logger);
+            var applicationResources = new ApplicationResources();
+            try
+            {
+                await applicationResources.LoadResources();
+            }
+            catch (Exception ex)
+            {
+                logger.WriteLine($"Error loading application resources -> {ex.Message}");
+                return;
+            }
+
+            var listenerManager = new ProxyListenerManager(logger, applicationResources);
 
             // ship2
             await listenerManager.StartListenerAsync(IPAddress.Parse("210.189.208.16"), 12200);
@@ -37,7 +50,14 @@ namespace PSRT
 
         public static string ToHexString(this byte[] bytes)
         {
-            return $"[{ string.Join(", ", bytes.Select(x => $"0x{x.ToString("x")}"))}]";
+            return $"[{string.Join(", ", bytes.Select(x => $"0x{x.ToString("x")}"))}]";
+        }
+
+        private static int _PacketDumpIndex = 0;
+        public static void DumpPacket(Packet packet)
+        {
+            Directory.CreateDirectory("PacketDump");
+            File.WriteAllBytes($"PacketDump/{Interlocked.Increment(ref _PacketDumpIndex)} {packet.Signature} 0x{packet.Flags.ToString("x4")}", packet.ToBytes());
         }
     }
 

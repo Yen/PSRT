@@ -13,12 +13,14 @@ namespace PSRT.Packets
 
         public LoginPacket(Packet packet) : base(packet)
         {
-            var userBytes = Body.Skip(500).Take(64).ToArray();
-            User = Encoding.ASCII.GetString(userBytes).TrimEnd('\0');
+            var credentialsOffset = Body.Length - 132;
+
+            var userBytes = Body.Skip(credentialsOffset).Take(64).ToArray();
+            User = Encoding.ASCII.GetString(userBytes).Split('\0')[0];
 
             // ignore password
-            //var passBytes = Body.Skip(564).Take(64).ToArray();
-            //Password = Encoding.ASCII.GetString(passBytes).TrimEnd('\0');
+            //var passBytes = Body.Skip(credentialsOffset + 64).Take(64).ToArray();
+            //Password = Encoding.ASCII.GetString(passBytes).Split('\0')[0];
         }
     }
 }

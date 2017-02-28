@@ -16,34 +16,34 @@ namespace PSRT.Packets
 
     class BlockListPacket : Packet
     {
-        public List<BlockInfo> BlockInfos { get; private set; } = new List<BlockInfo>();
+        // currently no way to resize block count
+        public BlockInfo[] BlockInfos { get; private set; }
 
         public BlockListPacket(Packet packet) : base(packet)
         {
-            // TODO: PSO2Proxy method
+            var blockCount = BitConverter.ToInt32(Body, 0);
+            BlockInfos = new BlockInfo[blockCount];
 
-            var position = 20;
-            while (position < Body.Length && Body[position] != 0)
+            for (int i = 0; i < blockCount; i++)
             {
-                var name = Encoding.Unicode.GetString(Body, position, 64).TrimEnd('\0');
-                var address = new IPAddress(Body.Skip(position).Skip(64).Take(4).ToArray());
-                var port = checked((int)BitConverter.ToUInt16(Body, position + 68));
+                var offset = 20 + i * 232;
 
-                BlockInfos.Add(new BlockInfo
+                var name = Encoding.Unicode.GetString(Body, offset, 64).Split('\0')[0];
+                var address = new IPAddress(Body.Skip(offset + 64).Take(4).ToArray());
+                var port = checked((int)BitConverter.ToUInt16(Body, offset + 68));
+
+                BlockInfos[i] = new BlockInfo
                 {
                     Name = name,
                     Address = address,
                     Port = port
-                });
-
-                // shift to next block
-                position += 232;
+                };
             }
         }
 
         public override byte[] ToBytes()
         {
-            for (int i = 0; i < BlockInfos.Count; i++)
+            for (int i = 0; i < BlockInfos.Length; i++)
             {
                 var position = 20 + (232 * i);
 

@@ -24,9 +24,11 @@ namespace PSRT
 
     class Packet
     {
-        public PacketSignature Signature;
-        public ushort Flags;
-        public byte[] Body;
+        public PacketSignature Signature { get; protected set; }
+
+        public ushort Flags { get; protected set; }
+
+        protected byte[] Body;
 
         public Packet(Packet copy): this(copy.Signature, copy.Flags, copy.Body)
         { }

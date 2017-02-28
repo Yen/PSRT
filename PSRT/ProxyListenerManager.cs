@@ -26,15 +26,17 @@ namespace PSRT
             public List<ProxyInfo> Proxies;
         }
 
+        private ApplicationResources _ApplicationResources;
         private ILogger _Logger;
         private ILogger _ProxyLogger;
         private SemaphoreSlim _ListenerSemaphore = new SemaphoreSlim(1, 1);
         private List<ListenerInfo> _Listeners = new List<ListenerInfo>();
 
-        public ProxyListenerManager(ILogger logger)
+        public ProxyListenerManager(ILogger logger, ApplicationResources applicationResources)
         {
             _Logger = new StagedLogger(logger, nameof(ProxyListenerManager));
             _ProxyLogger = logger;
+            _ApplicationResources = applicationResources;
         }
 
         public async Task StartListenerAsync(IPAddress address, int port)
@@ -56,7 +58,7 @@ namespace PSRT
 
                 var listenerTask = Task.Run(async () =>
                 {
-                    var listener = new TcpListener(IPAddress.Loopback, port);
+                    var listener = new TcpListener(_ApplicationResources.BindAddress, port);
                     try
                     {
                         listener.Start();
@@ -69,7 +71,7 @@ namespace PSRT
                             var server = new TcpClient();
                             await server.ConnectAsync(address, port);
 
-                            var proxy = new Proxy(_ProxyLogger, this);
+                            var proxy = new Proxy(_ProxyLogger, _ApplicationResources, this);
                             var proxyInfo = new ListenerInfo.ProxyInfo { Proxy = proxy };
                             proxies.Add(proxyInfo);
 

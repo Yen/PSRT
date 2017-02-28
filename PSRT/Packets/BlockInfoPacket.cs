@@ -48,7 +48,7 @@ namespace PSRT.Packets
         {
             _Address = new IPAddress(Body.Skip(96).Take(4).ToArray());
             _Port = BitConverter.ToUInt16(Body, 100);
-            _Name = Encoding.Unicode.GetString(Body, 32, 64).TrimEnd('\0');
+            _Name = Encoding.Unicode.GetString(Body, 32, 64).Split('\0')[0];
         }
     }
 }

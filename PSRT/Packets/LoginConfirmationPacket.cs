@@ -24,7 +24,7 @@ namespace PSRT.Packets
 
         public LoginConfirmationPacket(Packet packet) : base(packet)
         {
-            _BlockName = Encoding.Unicode.GetString(Body, 20, 64).TrimEnd('\0');
+            _BlockName = Encoding.Unicode.GetString(Body, 20, 64).Split('\0')[0];
         }
     }
 }
