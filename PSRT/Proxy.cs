@@ -252,11 +252,16 @@ namespace PSRT
             {
                 var packet = new BlockListPacket(p);
 
+                // translate block names
                 for (int i = 0; i < packet.BlockInfos.Length; i++)
                 {
                     var name = packet.BlockInfos[i].Name;
-                    if (_ApplicationResources.BlockNameTranslations.ContainsKey(name))
-                        packet.BlockInfos[i].Name = _ApplicationResources.BlockNameTranslations[name];
+                    var title = name.Substring(6);
+                    if (_ApplicationResources.BlockNameTranslations.ContainsKey(title))
+                    {
+                        var translation = _ApplicationResources.BlockNameTranslations[title];
+                        packet.BlockInfos[i].Name = $"{name.Substring(0, 5)}:{translation}";
+                    }
                 }
 
                 return packet;
