@@ -9,15 +9,35 @@ using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace PSRT
 {
+    class ProxyPacketConsumer : IPacketConsumer
+    {
+        public delegate Task PacketReceivedDelegate(Packet packet, RC4Engine encrypter);
+
+        private PacketReceivedDelegate _PacketReceived;
+        private RC4Engine _Encrypter;
+
+        public ProxyPacketConsumer(RC4Engine encrypter, PacketReceivedDelegate packetReceived)
+        {
+            _Encrypter = encrypter;
+            _PacketReceived = packetReceived;
+        }
+
+        public Task Submit(Packet packet) => _PacketReceived(packet, _Encrypter);
+    }
+
     class Proxy
     {
         private ApplicationResources _ApplicationResources;
         private ILogger _BaseLogger;
         private ProxyListenerManager _ProxyListenerManager;
+
+        private TcpClient _Client;
+        private TcpClient _Server;
 
         private byte[] _RC4Key;
 
@@ -33,21 +53,47 @@ namespace PSRT
             Outgoing
         }
 
-        public Proxy(ILogger logger, ApplicationResources applicationResources, ProxyListenerManager proxyListenerManager)
+        public Proxy(TcpClient client, TcpClient server, ILogger logger, ApplicationResources applicationResources, ProxyListenerManager proxyListenerManager)
         {
+            _Client = client;
+            _Server = server;
+
             _BaseLogger = new StagedLogger(new StagedLogger(logger, nameof(Proxy)), GetHashCode().ToString());
             _ApplicationResources = applicationResources;
             _ProxyListenerManager = proxyListenerManager;
         }
 
-        public async Task RunAsync(TcpClient client, TcpClient server)
+        private void Shutdown()
         {
-            _BaseLogger.WriteLine("Proxy begin");
+            _BaseLogger.WriteLine("Shutting down", LoggerLevel.Verbose);
+
+            try
+            {
+                _Client.Client.Shutdown(SocketShutdown.Both);
+            }
+            catch (Exception ex)
+            {
+                _BaseLogger.WriteLine($"Error shutting down client socket-> {ex.Message}", LoggerLevel.Verbose);
+            }
+
+            try
+            {
+                _Server.Client.Shutdown(SocketShutdown.Both);
+            }
+            catch (Exception ex)
+            {
+                _BaseLogger.WriteLine($"Error shutting down server socket -> {ex.Message}", LoggerLevel.Verbose);
+            }
+        }
+
+        public async Task RunAsync()
+        {
+            _BaseLogger.WriteLine("Begin");
 
             var tasks = new[]
             {
-                _HandleConnection(client, server, ConnectionDirection.Outgoing),
-                _HandleConnection(server, client, ConnectionDirection.Incoming)
+                _HandleConnection(_Client, _Server, ConnectionDirection.Outgoing),
+                _HandleConnection(_Server, _Client, ConnectionDirection.Incoming)
             };
 
             try
@@ -59,14 +105,12 @@ namespace PSRT
                 _BaseLogger.WriteLine($"Proxy ended with unhandled exception -> {ex.Message}", LoggerLevel.Verbose);
             }
 
-            _BaseLogger.WriteLine("Proxy end");
+            _BaseLogger.WriteLine("End");
         }
 
         private async Task _HandleConnection(TcpClient input, TcpClient output, ConnectionDirection direction)
         {
             var logger = new StagedLogger(_BaseLogger, direction.ToString());
-
-            logger.WriteLine("Handler begin");
 
             try
             {
@@ -77,11 +121,7 @@ namespace PSRT
                 logger.WriteLine($"Exception in handler -> {ex.Message}", LoggerLevel.Verbose);
             }
 
-            // ensure connections are teminated
-            input.Client.Shutdown(SocketShutdown.Both);
-            output.Client.Shutdown(SocketShutdown.Both);
-
-            logger.WriteLine("Handler end");
+            Shutdown();
         }
 
         private async Task _HandleConnectionInternal(Stream input, Stream output, ConnectionDirection direction, ILogger logger)
@@ -154,36 +194,41 @@ namespace PSRT
                     // remove packet data from buffer so it does not get processed again
                     acceptedBuffer.RemoveRange(0, packetLength);
 
+                    // default to unhandled packet
+                    var unhandledPacket = new Packet(packetSignature, packetFlags, packetBody);
+
                     // get encrypter early in case packet handling changes it
                     var encrypter = direction == ConnectionDirection.Incoming ? _IncomingRC4Encrypter : _OutgoingRC4Encrypter;
 
-                    // default to unhandled packet
-                    var unhandledPacket = new Packet(packetSignature, packetFlags, packetBody);
-                    var handledPacket = await _HandlePacket(unhandledPacket, logger);
+                    var consumer = new ProxyPacketConsumer(encrypter, async (packet, encryptionEngine) =>
+                    {
+                        try
+                        {
+                            var bytes = packet.ToBytes();
 
-                    var responseBuffer = handledPacket.ToBytes();
-                    // encrypt packet bytes if needed
-                    if (encrypter != null)
-                    {
-                        var encrypted = new byte[responseBuffer.Length];
-                        encrypter.ProcessBytes(responseBuffer, 0, responseBuffer.Length, encrypted, 0);
-                        responseBuffer = encrypted;
-                    }
+                            if (encryptionEngine != null)
+                            {
+                                var encryptedBytes = new byte[bytes.Length];
+                                encryptionEngine.ProcessBytes(bytes, 0, bytes.Length, encryptedBytes, 0);
+                                bytes = encryptedBytes;
+                            }
 
-                    try
-                    {
-                        await output.WriteAsync(responseBuffer, 0, responseBuffer.Length);
-                    }
-                    catch (Exception ex)
-                    {
-                        logger.WriteLine($"Error writing to stream -> {ex.Message}", LoggerLevel.VerboseTechnical);
-                        break;
-                    }
+                            await output.WriteAsync(bytes, 0, bytes.Length);
+                        }
+                        catch (Exception ex)
+                        {
+                            logger.WriteLine($"Exception writing packet -> {ex.Message}", LoggerLevel.Verbose);
+                            Shutdown();
+                            throw;
+                        }
+                    });
+
+                    await _HandlePacket(unhandledPacket, consumer, logger);
                 }
             }
         }
 
-        private async Task<Packet> _HandlePacket(Packet p, ILogger logger)
+        private async Task _HandlePacket(Packet p, IPacketConsumer consumer, ILogger logger)
         {
             // TODO: proper packet resolver with fancy lambdas and stuff
 
@@ -195,7 +240,8 @@ namespace PSRT
                 await _ProxyListenerManager.StartListenerAsync(packet.Address, packet.Port);
                 packet.Address = _ApplicationResources.HostAddress;
 
-                return packet;
+                await consumer.Submit(packet);
+                return;
             }
 
             if (p.Signature.Equals(0x11, 0xb))
@@ -220,21 +266,24 @@ namespace PSRT
                 _RC4Key = packet.RC4Key;
 
                 logger.WriteLine($"Packets are now encrypted");
-                return packet;
+                await consumer.Submit(packet);
+                return;
             }
 
             if (p.Signature.Equals(0x11, 0xc))
             {
                 var packet = new TokenPacket(p, _RC4Key);
                 logger.WriteLine($"{nameof(TokenPacket)} -> Token: {packet.Token.ToHexString()}", LoggerLevel.Verbose);
-                return packet;
+                await consumer.Submit(packet);
+                return;
             }
 
             if (p.Signature.Equals(0x11, 0x0))
             {
                 var packet = new LoginPacket(p);
                 logger.WriteLine($"LoginPacket -> User: `{packet.User}`", LoggerLevel.Verbose);
-                return packet;
+                await consumer.Submit(packet);
+                return;
             }
 
             if (p.Signature.Equals(0x11, 0x1))
@@ -243,10 +292,11 @@ namespace PSRT
 
                 // general sellout
                 var blockId = packet.BlockName.Substring(0, 5);
-                var releaseString = 
+                var releaseString =
                 packet.BlockName = $"{blockId}:{Program.ApplicationName}";
 
-                return packet;
+                await consumer.Submit(packet);
+                return;
             }
 
             if (p.Signature.Equals(0x11, 0x10))
@@ -265,7 +315,8 @@ namespace PSRT
                     }
                 }
 
-                return packet;
+                await consumer.Submit(packet);
+                return;
             }
 
             if (p.Signature.Equals(0x11, 0x13))
@@ -275,7 +326,8 @@ namespace PSRT
                 await _ProxyListenerManager.StartListenerAsync(packet.Address, packet.Port);
                 packet.Address = _ApplicationResources.HostAddress;
 
-                return packet;
+                await consumer.Submit(packet);
+                return;
             }
 
             // user rooms and team room both use the same packet structure
@@ -287,7 +339,8 @@ namespace PSRT
                 await _ProxyListenerManager.StartListenerAsync(packet.Address, packet.Port);
                 packet.Address = _ApplicationResources.HostAddress;
 
-                return packet;
+                await consumer.Submit(packet);
+                return;
             }
 
             if (p.Signature.Equals(0x11, 0x21))
@@ -298,7 +351,8 @@ namespace PSRT
                 await _ProxyListenerManager.StartListenerAsync(packet.Address, packet.Port);
                 packet.Address = _ApplicationResources.HostAddress;
 
-                return packet;
+                await consumer.Submit(packet);
+                return;
             }
 
             //if (p.Signature.Equals(0x31, 0x5))
@@ -328,7 +382,8 @@ namespace PSRT
             //    return packet;
             //}
 
-            return p;
+            // if there is no handler just pass through the packet without changing it
+            await consumer.Submit(p);
         }
     }
 }

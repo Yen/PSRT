@@ -71,11 +71,11 @@ namespace PSRT
                             var server = new TcpClient();
                             await server.ConnectAsync(address, port);
 
-                            var proxy = new Proxy(_ProxyLogger, _ApplicationResources, this);
+                            var proxy = new Proxy(client, server, _ProxyLogger, _ApplicationResources, this);
                             var proxyInfo = new ListenerInfo.ProxyInfo { Proxy = proxy };
                             proxies.Add(proxyInfo);
 
-                            var proxyTask = Task.Run(() => proxy.RunAsync(client, server)).ContinueWith(t =>
+                            var proxyTask = Task.Run(proxy.RunAsync).ContinueWith(t =>
                             {
                                 proxies.Remove(proxyInfo);
                             });

@@ -55,6 +55,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ApplicationResources.cs" />
+    <Compile Include="IPacketConsumer.cs" />
     <Compile Include="Packets\BlockListPacket.cs" />
     <Compile Include="Packets\BlockReplyPacket.cs" />
     <Compile Include="Packets\DamagePacket.cs" />
