@@ -217,7 +217,7 @@ namespace PSRT
                         }
                         catch (Exception ex)
                         {
-                            logger.WriteLine($"Exception writing packet -> {ex.Message}", LoggerLevel.Verbose);
+                            logger.WriteLine($"Exception writing packet -> {ex.Message}", LoggerLevel.VerboseTechnical);
                             Shutdown();
                             throw;
                         }
@@ -316,6 +316,7 @@ namespace PSRT
                 }
 
                 await consumer.Submit(packet);
+
                 return;
             }
 

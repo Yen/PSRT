@@ -18,7 +18,7 @@ namespace PSRT
 #else
         public static string ApplicationName = $"PSRT {Assembly.GetExecutingAssembly().GetName().Version}";
 #endif
-
+        
         static void Main(string[] args)
         {
             Console.WriteLine(ApplicationName);
@@ -28,8 +28,8 @@ namespace PSRT
 
         static async Task MainAsync()
         {
-            var logger = new ConsoleLogger(LoggerLevel.Verbose);
-            //var logger = new ConsoleLogger();
+            //var logger = new ConsoleLogger(LoggerLevel.Verbose);
+            var logger = new ConsoleLogger();
 
             var applicationResources = new ApplicationResources();
             try

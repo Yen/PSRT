@@ -60,6 +60,7 @@
     <Compile Include="Packets\BlockReplyPacket.cs" />
     <Compile Include="Packets\DamagePacket.cs" />
     <Compile Include="Packets\LoginConfirmationPacket.cs" />
+    <Compile Include="Packets\LuaPacket.cs" />
     <Compile Include="Packets\RoomInfoPacket.cs" />
     <Compile Include="Packets\SharedShipPacket.cs" />
     <Compile Include="Packets\PackedStringPacket.cs" />

@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 
 namespace PSRT
-{
+{ 
     interface ILogger
     {
         void WriteLine(string message, LoggerLevel level = LoggerLevel.Info);
