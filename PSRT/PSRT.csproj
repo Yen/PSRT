@@ -55,7 +55,6 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ApplicationResources.cs" />
-    <Compile Include="IPacketConsumer.cs" />
     <Compile Include="Packets\BlockListPacket.cs" />
     <Compile Include="Packets\BlockReplyPacket.cs" />
     <Compile Include="Packets\DamagePacket.cs" />
@@ -72,7 +71,7 @@
     <Compile Include="Packet.cs" />
     <Compile Include="Packets\BlockInfoPacket.cs" />
     <Compile Include="Packets\KeyExchangePacket.cs" />
-    <Compile Include="Packets\LoginPacket.cs" />
+    <Compile Include="Packets\LoginCredentialsPacket.cs" />
     <Compile Include="Packets\TokenPacket.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

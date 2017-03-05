@@ -28,9 +28,9 @@ namespace PSRT
 
         public ushort Flags { get; protected set; }
 
-        protected byte[] Body;
+        public byte[] Body;
 
-        public Packet(Packet copy): this(copy.Signature, copy.Flags, copy.Body)
+        public Packet(Packet copy) : this(copy.Signature, copy.Flags, copy.Body)
         { }
 
         public Packet(PacketSignature signature, ushort flags, byte[] body)

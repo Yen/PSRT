@@ -6,12 +6,12 @@ using System.Threading.Tasks;
 
 namespace PSRT.Packets
 {
-    class LoginPacket : Packet
+    class LoginCredentialsPacket : Packet
     {
         public string User { get; private set; }
         //public string Password { get; private set; }
 
-        public LoginPacket(Packet packet) : base(packet)
+        public LoginCredentialsPacket(Packet packet) : base(packet)
         {
             var credentialsOffset = Body.Length - 132;
 
