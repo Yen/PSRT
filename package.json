@@ -1,0 +1,25 @@
+{
+  "name": "psrt",
+  "version": "2.0.0",
+  "description": "PSO2 Runtime",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Zogzer/PSRT.git"
+  },
+  "dependencies": {
+    "@types/colors": "^1.1.1",
+    "@types/ip": "0.0.29",
+    "@types/node": "7.0.5",
+    "@types/sqlite3": "^2.2.32",
+    "buffer-reverse": "^1.0.1",
+    "colors": "^1.1.2",
+    "ip": "^1.1.5",
+    "node-rsa": "^0.4.2",
+    "simple-rc4": "0.0.1-b",
+    "sqlite3": "^3.1.8"
+  },
+  "scripts": {
+    "start": "node bin/app.js"
+  }
+}

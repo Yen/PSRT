@@ -1,0 +1,13 @@
+{
+	"compilerOptions": {
+		"rootDir": "./src/",
+		"outDir": "./bin/",
+		"sourceMap": true,
+		"noImplicitAny": true,
+		"strictNullChecks": true,
+		"target": "es5",
+		"lib": [
+			"es6"
+		]
+	}
+}
